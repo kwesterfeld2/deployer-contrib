@@ -1,0 +1,27 @@
+{% import 'common.jinja' as common %}
+
+resources:
+- type: compute.v1.network
+  name: {{ common.getVpcName(env) }}
+  properties:
+    autoCreateSubnetworks: false
+
+- type: compute.v1.subnetwork
+  name: {{ common.getSubnetName(env) }}
+  properties:
+    network: $(ref.{{ common.getVpcName(env) }}.selfLink)
+    region: {{ properties["region"] }}
+    ipCidrRange: {{ properties["ipCidrRange"] }}
+
+{# add a firewall rule to open the port 443, the binding to the vm is made through the tags #}
+- type: compute.v1.firewall
+  name: {{ common.getFirewallName(env) }}
+  properties:
+    network: $(ref.{{ common.getVpcName(env) }}.selfLink)
+    sourceRanges: [0.0.0.0/0]
+    allowed:
+      - IPProtocol: "tcp"
+        ports: ['443']
+      - IPProtocol: "tcp"
+        ports: ['22']
+    targetTags: ['https-server']

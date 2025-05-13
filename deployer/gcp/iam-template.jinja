@@ -1,0 +1,27 @@
+resources:
+- name: {{ env["deployment"] }}-service-account
+  type: iam.v1.serviceAccount
+  properties:
+    {# the account id is limited to 30 chars max, so make sure we can't go over the limit #}
+    accountId:  {{ env["deployment"] | truncate(27, True, '') }}-id
+    displayName: {{ properties["accountName"] }}
+- name: {{ env["deployment"] }}-role
+  type: gcp-types/iam-v1:projects.roles
+  properties:
+    parent: projects/{{ env["project"] }}
+    roleId: yb_installer_$(ref.{{ env["deployment"] }}-service-account.uniqueId)
+    role:
+      title: {{ properties["roleTitle"] }}
+      stage: EAP
+      description: {{ properties["roleDescription"] }}
+      includedPermissions: {{ properties["includedPermissions"] }}
+- name: {{ env["deployment"] }}-role-binding
+  metadata:
+    dependsOn:
+      - {{ env["deployment"] }}-service-account
+      - {{ env["deployment"] }}-role
+  type: gcp-types/cloudresourcemanager-v1:virtual.projects.iamMemberBinding
+  properties:
+    resource: {{ env["project"] }}
+    role: projects/{{ env["project"] }}/roles/yb_installer_$(ref.{{ env["deployment"] }}-service-account.uniqueId)
+    member: serviceAccount:$(ref.{{ env["deployment"] }}-service-account.email)

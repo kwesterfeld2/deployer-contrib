@@ -1,0 +1,23 @@
+{%- macro getVpcName(env) -%}
+    {{ env["deployment"] | truncate(54, True, '') }}-vpc
+{%- endmacro %}
+
+{%- macro getSubnetName(env) -%}
+    {{ env["deployment"] | truncate(50, True, '') }}-subnet-0
+{%- endmacro %}
+
+{%- macro getFirewallName(env) -%}
+    {{ env["deployment"] | truncate(50, True, '') }}-firewall
+{%- endmacro %}
+
+{%- macro getVmIpName(env) -%}
+    {{ env["deployment"] | truncate(54, True, '') }}-vm-ip
+{%- endmacro %}
+
+{%- macro getVmDiskName(env) -%}
+    {{ env["deployment"] | truncate(52, True, '') }}-vm-disk
+{%- endmacro %}
+
+{%- macro getVmName(env) -%}
+    {{ env["deployment"] | truncate(55, True, '') }}-vm
+{%- endmacro %}

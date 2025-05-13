@@ -1,0 +1,59 @@
+{% import 'common.jinja' as common %}
+
+resources:
+- name: {{ common.getVmDiskName(env) }}
+  type: compute.v1.disk
+  properties:
+    zone: {{ properties["zone"] }}
+    sizeGb: 30
+    type: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/diskTypes/pd-ssd
+
+- name: {{ common.getVmIpName(env) }}
+  type: compute.v1.address
+  properties:
+    region: {{ properties["region"] }}
+
+- name: {{ common.getVmName(env) }}
+  metadata:
+    dependsOn:
+      - {{ common.getVpcName(env) }}
+      - {{ common.getVmDiskName(env) }}
+  type: compute.v1.instance
+  properties:
+    zone: {{ properties["zone"] }}
+    machineType: https://www.googleapis.com/compute/v1/projects/{{ env["project"] }}/zones/{{ properties["zone"] }}/machineTypes/{{ properties["machineType"] }}
+    networkInterfaces:
+    - network: $(ref.{{ common.getVpcName(env) }}.selfLink)
+      subnetwork: $(ref.{{ common.getSubnetName(env) }}.selfLink)
+      accessConfigs:
+      - name: External NAT
+        natIP: $(ref.{{ common.getVmIpName(env) }}.address)
+        type: ONE_TO_ONE_NAT
+    disks:
+    - deviceName: boot
+      type: PERSISTENT
+      boot: true
+      autoDelete: true
+      initializeParams:
+        diskName: {{ env["deployment"] | truncate(54, True, '') }}-vm-boot
+        sourceImage: {{ properties["sourceImage"] }}
+    - deviceName: {{ common.getVmDiskName(env) }}
+      type: PERSISTENT
+      source: $(ref.{{ common.getVmDiskName(env) }}.selfLink)
+      autoDelete: true
+    serviceAccounts:
+    - email: $(ref.{{ env["deployment"] }}-service-account.email)
+      scopes: ['https://www.googleapis.com/auth/cloud-platform']
+    tags:
+      items: ['https-server']
+    metadata:
+      items:
+        - key: user-data
+          value: "#cloud-config\nwrite_files:\n  - path: /opt/ybd/bootstrap.sh\n    permissions: 0755\n    content: |\n      #!/bin/bash\n      set -e\n      function log() {\n          echo $(date --rfc-3339=seconds) $1 >> /var/log/bootstrap.log\n      }\n      log \"Bootstrap script started\"\n      sed -i \"s_^ExecStart=/opt/ybd/yb-install interactive --port 443\\$_ExecStart=/opt/ybd/yb-install interactive --port 443 --key {{ env['project_number'] }}$(ref.{{ common.getVmDiskName(env) }}.id) --allow $(ref.{{ common.getVmIpName(env) }}.address)/32_\" /etc/systemd/system/yb-install.service\n      systemctl daemon-reload\n      systemctl restart yb-install.service\n      if [ $? -eq 0 ]; then\n          log \"Service restarted\"\n      else\n          log \"Service failed to restart\"\n      fi\n      log \"Bootstrap script complete\"\nruncmd:\n  - bash /opt/ybd/bootstrap.sh\n"
+outputs:
+- name: installerUrl
+  value: https://$(ref.{{ common.getVmIpName(env) }}.address)/?deployerAccessKey={{ env['project_number'] }}$(ref.{{ common.getVmDiskName(env) }}.id)&deployerPlatform=gcp
+- name: installerIp
+  value: $(ref.{{ common.getVmIpName(env) }}.address)
+- name: accessKey
+  value: {{ env['project_number'] }}$(ref.{{ common.getVmDiskName(env) }}.id)
